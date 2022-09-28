@@ -1,0 +1,255 @@
+/*
+Stephon Grace
+Complete code for Motion Detecting Camera utilizing PIR sensors, USB camera, LCD display, Servo
+and Arduino
+*/
+#include <Servo.h>
+
+#include <boarddefs.h>
+#include <IRremote.h>
+#include <IRremoteInt.h>
+#include <ir_Lego_PF_BitStreamEncoder.h>
+
+#include <IRremote.h>
+#include <IRremoteInt.h>
+
+#include <Servo.h>  // servo library
+#include <LiquidCrystal.h> //lcddisplay library
+
+Servo servo;
+
+const int Leftsensor= 11;
+const int Middlesensor= 12;
+const int Rightsensor= 13;
+
+LiquidCrystal lcddisplay(7, 6, 5, 4, 3, 2);  //initializing library with interface pins
+
+int RECV_PIN= 9;   //for the remote interrrupt
+IRrecv irrecv(RECV_PIN);
+decode_results results;
+
+
+void setup(){
+  servo.attach(10);
+  pinMode(Leftsensor, INPUT);
+  pinMode(Middlesensor, INPUT);
+  pinMode(Rightsensor, INPUT);
+
+  digitalWrite(Leftsensor, LOW);
+  digitalWrite(Middlesensor, LOW);
+  digitalWrite(Rightsensor, LOW);
+
+  lcddisplay.begin(16, 2);  //lcddisplay's number of columns and rows
+
+
+  Serial.begin(9600);   //this is for the irRemote
+  irrecv.enableIRIn();
+
+
+}
+
+void loop(){
+
+  //declare variables==================================
+
+  int pos=1; 
+  boolean forever= true;
+  int fullLoop=0;    //this will count how many times we do a full 180
+
+  long remInt= 0;    //this is where we save remote.value
+
+  //=============================== Main begins ==================================
+
+  startCam();      //initial greeting from the camera, delay to initialize sensors
+
+  while(remInt != 0xFF22DD){    //if Pause/Play button is not pressed normal rotation resumed
+
+    remInt= remResults(remInt);    //saves results.value into long remInt
+
+    fullLoop= fullLoopMode(fullLoop, pos);    //has it been a full loop?
+    pos= rotateMode(fullLoop, pos);  //keeps track of position
+    pos= movementCheckMode(pos);     //Checks for movement, if movement detected it goes to that pos & updates
+    lcddisplayDisplay();    //Handles display to lcddisplay
+  }  
+  remInt= resetRem(remInt);   //resets remInt so no interference
+  while(remInt != 0xFF629D){      //if not mode button
+    remInt= remResults(remInt);
+    lcddisplay.clear();
+    lcddisplay.print("manual interrupt");
+    if((remInt == 0xFFC23D) && (pos >= 11)){    //if Fast Forward move servo to right
+      pos= rightForward(pos);
+      remInt= resetRem(remInt); //resets results.value so no interference
+    }
+    if((remInt == 0xFF02FD) && (pos <= 169)){    //if rewind move servo to the left
+      pos= leftRewind(pos);
+      remInt= resetRem(remInt); //resets results.value so no interference
+    }
+  }
+  remInt= resetRem(remInt);      //resets results.value so no interference
+
+}
+//=================================Main Ends=========================================  
+long remResults(long buttonPressed){    //method to handle getting the interrupt button data
+  if(irrecv.decode(&results)){
+    irrecv.resume();
+  }
+  buttonPressed= results.value;
+  return buttonPressed;
+}
+
+long resetRem(long remote){        //this resets the results.value saved into remInt to zero so that no interference happens
+  remote= 0;
+  return remote;
+}
+
+int leftRewind(int loc){      //this method handles manual interrupt to the left
+  loc= loc + 10;
+  servo.write(loc);
+  return loc;
+}
+
+int rightForward(int loc){    //this method handles manual interrupt to the right
+  loc= loc-10;
+  servo.write(loc);
+  return loc;
+}
+
+void lcddisplayDisplay(){          //Handles lcddisplay display for no movement and motion detected
+
+  int left, center, right;
+  left= digitalRead(Leftsensor);
+  center= digitalRead(Middlesensor);
+  right= digitalRead(Rightsensor);
+
+  if((left== LOW) && (center== LOW) && (right== LOW)){
+    lcddisplay.clear();
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("No Movement Felt");
+    //for(int positionCounter=0; positionCounter < 2; positionCounter++){
+    //  lcddisplay.scrollDisplayLeft();
+    //}
+    //for(int positionCounter=0; positionCounter < 2; positionCounter++){
+    //  lcddisplay.scrollDisplayRight();
+    //}
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("    Rotating    ");
+  }
+  if((left== HIGH) && (center== LOW) && (right== LOW)){
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("Motion Detected ");
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("Moving to 0 deg ");
+  }
+  if((left== HIGH) && (center== HIGH) && (right== LOW)){
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("Motion Detected ");
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("Moving to 45 deg");
+  }
+  if((left== LOW) && (center== HIGH) && (right== LOW)){
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("Motion Detected ");
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("Moving to 90 deg");
+  }
+  if((left== LOW) && (center== HIGH) && (right== HIGH)){
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("Motion Detected ");
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("Moving to 135 deg");
+  }
+  if((left== LOW) && (center== LOW) && (right== HIGH)){
+    lcddisplay.setCursor(0,0);            //sets cursor to top row
+    lcddisplay.print("Motion Detected ");
+    lcddisplay.setCursor(0,1);            //sets cursor to the bottom row
+    lcddisplay.print("Moving to 180 deg");
+  }  
+}
+
+int movementCheckMode(int loc){        //handles what happens when motion is detected
+
+  int left, center, right;
+  left= digitalRead(Leftsensor);
+  center= digitalRead(Middlesensor);
+  right= digitalRead(Rightsensor);
+
+  if((left== HIGH) && (center== LOW) && (right== LOW)){
+    servo.write(1);
+    loc= 1;
+  }
+  if((left== HIGH) && (center== HIGH) && (right== LOW)){
+    servo.write(45);
+    loc= 45;
+  }
+  if((left== LOW) && (center== HIGH) && (right== LOW)){
+    servo.write(90);
+    loc= 90;
+  }
+  if((left== LOW) && (center== HIGH) && (right== HIGH)){
+    servo.write(135);
+    loc= 135;
+  }
+  if((left== LOW) && (center== LOW) && (right== HIGH)){
+    servo.write(179);
+    loc= 179;
+  }
+  return loc;
+}
+
+int fullLoopMode(int loops, int steps){    //method to find if it's done a complete horizontal 180
+
+  if(steps == 180 || steps == 0){
+    ++loops;
+  } 
+  return loops;
+}
+
+
+int rotateMode(int full, int singleLoop){    //this one handles normal uninterrupted rotation
+
+  if( (full % 2) == 0){
+    servo.write(singleLoop);
+    delay(20);
+    ++singleLoop;
+  } 
+  else if((full % 2) == 1){
+    servo.write(singleLoop);
+    delay(20);
+    --singleLoop;
+  }
+  return singleLoop;
+}
+
+void startCam(){
+  lcddisplay.clear();
+  lcddisplay.setCursor(0,0);
+  lcddisplay.print("   SecureCam   ");
+  lcddisplay.setCursor(0, 1);
+  delay(1000);
+  lcddisplay.print("  Booting up   ");
+  
+  for( int a= 10; a >= 0; --a){
+    lcddisplay.setCursor(14,1);
+    lcddisplay.print(a);
+    delay(1000);
+    lcddisplay.setCursor(14,1);
+    lcddisplay.print("  ");
+  }
+  lcddisplay.clear();
+  lcddisplay.setCursor(0,0);
+  lcddisplay.print("  Initializing");
+  lcddisplay.setCursor(0,1);
+  lcddisplay.print("    sensors");
+  delay(1000); 
+  for(int a= 10; a >= 0; --a){
+    lcddisplay.setCursor(14,1);
+    lcddisplay.print(a);
+    delay(1000);
+    lcddisplay.setCursor(14,1);
+    lcddisplay.print("  ");
+  }
+  lcddisplay.clear();
+}
+  
+
+
