@@ -1,0 +1,21 @@
+import time
+import os
+import picamera
+import RPi.GPIO as GPIO
+
+with picamera.PiCamera() as camera:
+  def camon():
+    camera.start_preview()
+    camera.vflip = True
+    camera.start_recording('/home/pi/Desktop/securitycam002.h264')
+    timesleep(800)
+    camera.stop_recording()
+    camera.stop_preview()
+    
+   def camoff():
+     camera.stop_recording()
+     camera.stop_preview()
+   try:
+      camon()
+   except KeyboardInterrupt:
+      camoff()
