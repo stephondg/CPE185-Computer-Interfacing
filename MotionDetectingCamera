@@ -1,6 +1,6 @@
 /*
 Stephon Grace
-Complete code for Motion Detecting Camera utilizing PIR sensors, USB camera, LCD display, Servo
+Complete code for Motion Detecting Camera utilizing PIR sensors, RPi camera, 16x2 LCD display, Servo
 and Arduino
 */
 #include <Servo.h>
